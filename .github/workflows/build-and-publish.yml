@@ -42,7 +42,7 @@ jobs:
         working-directory: helm-charts
         run: |
           VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
-          CHART_DIR="your-chart"  # If your Chart.yaml is at the root, use "." instead
+          CHART_DIR="."  # If your Chart.yaml is at the root, use "." instead
           
           # Update appVersion in Chart.yaml:
           sed -i "s|^appVersion: .*|appVersion: ${VERSION}|" "${CHART_DIR}/Chart.yaml"
