@@ -1,48 +1,67 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-name: Build and Publish a Docker image
+name: Release
 
 on:
   push:
-    branches: ['main']
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+    tags:
+      - '*.*.*'      
 
 jobs:
-  build-and-push-image:
+  build_and_release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
-      - name: Checkout repository
+      - name: Check out source code
         uses: actions/checkout@v3
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract version from tag
+        id: get_tag
+        run: echo "TAG_NAME=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          flavor: |
-            latest=true
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+      - name: Build and Push Docker image
+        run: |
+          VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
+          docker build -t juanwz/tasky:"$VERSION" .
+          docker push juanwz/tasky:"$VERSION"
+
+      - name: Check out Helm Chart repo
+        uses: actions/checkout@v3
         with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          repository: <ORG>/<HELM_CHART_REPO>
+          # Make sure your PAT has permission to push changes
+          token: ${{ secrets.HELM_CHART_PAT }}
+          path: helm-charts  # folder to clone the Helm repo into
+
+      - name: Update Chart.yaml
+        working-directory: helm-charts
+        run: |
+          VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
+          CHART_DIR="your-chart"  # If your Chart.yaml is at the root, use "." instead
+          
+          # Update appVersion in Chart.yaml:
+          sed -i "s|^appVersion: .*|appVersion: ${VERSION}|" "${CHART_DIR}/Chart.yaml"
+
+          # (Optional) If you also want to update 'version:' in Chart.yaml to keep them aligned, uncomment:
+          # sed -i "s|^version: .*|version: ${VERSION}|" "${CHART_DIR}/Chart.yaml"
+
+      - name: Commit and push chart changes
+        working-directory: helm-charts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .
+          git commit -m "Update Helm chart to version ${{ steps.get_tag.outputs.TAG_NAME }}"
+          git push
+
+      - name: Create a tag in the Helm chart repo
+        working-directory: helm-charts
+        run: |
+          VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
