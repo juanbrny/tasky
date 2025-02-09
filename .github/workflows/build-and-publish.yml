@@ -32,7 +32,7 @@ jobs:
       - name: Check out Helm Chart repo
         uses: actions/checkout@v3
         with:
-          repository: <ORG>/<HELM_CHART_REPO>
+          repository: juanbrny/tasky-chart
           # Make sure your PAT has permission to push changes
           token: ${{ secrets.HELM_CHART_PAT }}
           path: helm-charts  # folder to clone the Helm repo into
