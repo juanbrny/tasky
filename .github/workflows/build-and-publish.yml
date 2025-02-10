@@ -23,11 +23,49 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build and Push Docker image
+      - name: Build Docker image
         run: |
-          CONTAINER_VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
-          docker build -t juanwz/tasky:"$CONTAINER_VERSION" .
-          docker push juanwz/tasky:"$CONTAINER_VERSION"
+          VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
+          docker build -t juanwz/tasky:"$VERSION" .
+
+      # -------------------------- SECURITY SCAN (Toggle On/Off) --------------------------
+      #
+      # Uncomment the following step to enable Trivy scanning for CRITICAL vulnerabilities.
+      # If a CRITICAL issue is found, the step exits with code 1, failing the workflow.
+      #
+      # - name: Scan Docker image with Trivy
+      #   run: |
+      #     VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
+      #     # Pull the Trivy image
+      #     docker pull aquasec/trivy:latest
+      #     # Scan the newly built image
+      #     docker run --rm \
+      #       -v /var/run/docker.sock:/var/run/docker.sock \
+      #       aquasec/trivy:latest image \
+      #         --exit-code 1 \
+      #         --severity CRITICAL \
+      #         --ignore-unfixed \
+      #       juanwz/tasky:"$VERSION"      
+      
+      - name: Scan Docker image with Trivy
+        run: |
+          VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
+          # Pull the Trivy image
+          docker pull aquasec/trivy:latest
+          # Scan the newly built image
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+              --exit-code 1 \
+              --severity CRITICAL \
+              --ignore-unfixed \
+            juanwz/tasky:"$VERSION"
+      # -----------------------------------------------------------------------------------
+
+      - name: Push Docker image
+        run: |
+          VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
+          docker push juanwz/tasky:"$VERSION"
 
       - name: Check out Helm Chart repo
         uses: actions/checkout@v3
@@ -78,7 +116,6 @@ jobs:
       - name: Create a tag in the Helm chart repo
         working-directory: helm-charts
         run: |
-          # Instead of tagging with the container version, we tag with the new chart version
           NEW_CHART_VERSION=${{ steps.update_chart.outputs.NEW_CHART_VERSION }}
           git tag "v${NEW_CHART_VERSION}"
           git push origin "v${NEW_CHART_VERSION}"
