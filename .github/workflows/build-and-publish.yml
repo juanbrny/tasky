@@ -3,8 +3,7 @@ name: Release
 on:
   push:
     tags:
-      #- '*.*.*'
-      - '*'
+      - '*'  # triggers on any new tag push
 
 jobs:
   build_and_release:
@@ -41,14 +40,30 @@ jobs:
       - name: Update Chart.yaml
         working-directory: helm-charts
         run: |
-          VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
-          CHART_DIR="."  # If your Chart.yaml is at the root, use "." instead
+          # 1) Parse the existing 'version:' from Chart.yaml
+          CURRENT_VERSION=$(grep '^version:' Chart.yaml | sed 's/version: //')
           
-          # Update appVersion in Chart.yaml:
-          sed -i "s|^appVersion: .*|appVersion: ${VERSION}|" "${CHART_DIR}/Chart.yaml"
+          # 2) Split CURRENT_VERSION into MAJOR, MINOR, PATCH
+          IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+          
+          # 3) Increment the PATCH by 1
+          patch=$((patch + 1))
+          
+          # 4) Compose the new chart version
+          NEW_CHART_VERSION="$major.$minor.$patch"
 
-          # (Optional) If you also want to update 'version:' in Chart.yaml to keep them aligned, uncomment:
-          # sed -i "s|^version: .*|version: ${VERSION}|" "${CHART_DIR}/Chart.yaml"
+          echo "Current version: $CURRENT_VERSION"
+          echo "New chart version: $NEW_CHART_VERSION"
+          
+          # 5) Replace 'version:' in Chart.yaml with the new chart version
+          sed -i "s/^version:.*/version: $NEW_CHART_VERSION/" Chart.yaml
+
+          # 6) If you want 'appVersion' to match the Docker tag, do:
+          VERSION=${{ steps.get_tag.outputs.TAG_NAME }}
+          sed -i "s/^appVersion:.*/appVersion: $VERSION/" Chart.yaml
+
+          # OR if you want 'appVersion' to match the newly incremented chart version, do:
+          # sed -i "s/^appVersion:.*/appVersion: $NEW_CHART_VERSION/" Chart.yaml
 
       - name: Commit and push chart changes
         working-directory: helm-charts
@@ -56,8 +71,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add .
-          git commit -m "Update Helm chart to version ${{ steps.get_tag.outputs.TAG_NAME }}"
+          git add Chart.yaml
+          git commit -m "Update Helm chart to version ${{ steps.get_tag.outputs.TAG_NAME }}; Chart version bumped"
           git push
 
       - name: Create a tag in the Helm chart repo
