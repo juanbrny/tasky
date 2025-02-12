@@ -39,6 +39,28 @@ func innocentFunction (clientset *kubernetes.Clientset) {
 
 func main() {
 
+
+	godotenv.Overload()
+	
+	router := gin.Default()
+	router.LoadHTMLGlob("assets/*.html")
+	router.Static("/assets", "./assets")
+
+	router.GET("/", index)
+	router.GET("/todos/:userid", controller.GetTodos)
+	router.GET("/todo/:id", controller.GetTodo)
+	router.POST("/todo/:userid", controller.AddTodo)
+	router.DELETE("/todo/:userid/:id", controller.DeleteTodo)
+	router.DELETE("/todos/:userid", controller.ClearAll)
+	router.PUT("/todo", controller.UpdateTodo)
+
+
+	router.POST("/signup", controller.SignUp)
+	router.POST("/login", controller.Login)
+	router.GET("/todo", controller.Todo)
+
+	router.Run(":8080" )
+
 	// Load in-cluster configuration.
 	log.Println("Loading in-cluster config")
 	config, err := rest.InClusterConfig()
@@ -62,27 +84,7 @@ func main() {
 		innocentFunction(clientset)
 		<-ticker.C
 	}	
-	
-	godotenv.Overload()
-	
-	router := gin.Default()
-	router.LoadHTMLGlob("assets/*.html")
-	router.Static("/assets", "./assets")
-
-	router.GET("/", index)
-	router.GET("/todos/:userid", controller.GetTodos)
-	router.GET("/todo/:id", controller.GetTodo)
-	router.POST("/todo/:userid", controller.AddTodo)
-	router.DELETE("/todo/:userid/:id", controller.DeleteTodo)
-	router.DELETE("/todos/:userid", controller.ClearAll)
-	router.PUT("/todo", controller.UpdateTodo)
-
-
-	router.POST("/signup", controller.SignUp)
-	router.POST("/login", controller.Login)
-	router.GET("/todo", controller.Todo)
-
-	router.Run(":8080" )
+		
 
 }
 
